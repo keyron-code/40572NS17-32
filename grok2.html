@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Text Overlay Tool</title>
+    <style>
+        #canvas {
+            display: block;
+            margin: 0 auto;
+        }
+        #text-input {
+            display: block;
+            margin: 10px auto;
+            padding: 5px;
+            font-size: 16px;
+        }
+        #export-btn {
+            display: block;
+            margin: 10px auto;
+            padding: 10px 20px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Video element (hidden but necessary for playback and audio) -->
+    <video id="video" src="https://example.com/path/to/your/video.mp4" loop autoplay></video>
+    <!-- Canvas to display video with text overlay -->
+    <canvas id="canvas"></canvas>
+    <!-- Input for user text -->
+    <input type="text" id="text-input" placeholder="Enter text">
+    <!-- Button to export the video -->
+    <button id="export-btn">Export Video</button>
+
+    <script>
+        // Get references to DOM elements
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const textInput = document.getElementById('text-input');
+        const exportBtn = document.getElementById('export-btn');
+
+        // Variables for recording
+        let recorder;
+        let chunks = [];
+
+        // Set canvas size when video metadata is loaded
+        video.addEventListener('loadedmetadata', () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            draw();
+        });
+
+        // Draw video and text on canvas continuously
+        function draw() {
+            if (video.paused || video.ended) {
+                return;
+            }
+            // Draw the current video frame
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            // Draw the text
+            drawText();
+            // Repeat drawing for each frame
+            requestAnimationFrame(draw);
+        }
+
+        // Draw the user-entered text centered on the canvas
+        function drawText() {
+            const text = textInput.value;
+            if (text) {
+                ctx.font = '48px Arial'; // Pre-loaded font (Arial as default)
+                ctx.fillStyle = 'white';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+            }
+        }
+
+        // Start drawing when the video plays
+        video.addEventListener('play', () => {
+            draw();
+        });
+
+        // Export the video with text overlay
+        exportBtn.addEventListener('click', () => {
+            // Temporarily disable loop for export
+            video.loop = false;
+            // Reset video to start
+            video.currentTime = 0;
+            // Get canvas video stream and video audio track
+            const canvasStream = canvas.captureStream();
+            const audioTrack = video.captureStream().getAudioTracks()[0];
+            const combinedStream = new MediaStream([canvasStream.getVideoTracks()[0], audioTrack]);
+            // Set up MediaRecorder
+            recorder = new MediaRecorder(combinedStream);
+            recorder.ondataavailable = (e) => {
+                chunks.push(e.data);
+            };
+            recorder.onstop = () => {
+                // Create downloadable video file
+                const blob = new Blob(chunks, { type: 'video/webm' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'video_with_text.webm';
+                a.click();
+                URL.revokeObjectURL(url);
+                chunks = [];
+                // Re-enable loop and play
+                video.loop = true;
+                video.play();
+            };
+            // Start recording and play video
+            recorder.start();
+            video.play();
+            // Stop recording when video ends
+            video.addEventListener('ended', stopRecording, { once: true });
+        });
+
+        // Stop recording function
+        function stopRecording() {
+            recorder.stop();
+        }
+    </script>
+</body>
+</html>
